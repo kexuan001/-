@@ -96,6 +96,27 @@ spawn(function()
     end
 end)
 
+-- [[ 核心橋接器：將加密數據轉化為功能指令 ]]
+
+local Encrypted_Raw_Data = "這裡請放入你文件1中那串最長的引號內容"
+
+-- 核心解密算法 (XOR 231 邏輯)
+local function RealTime_Decrypt(input)
+    local result = {}
+    for i = 1, #input do
+        -- 231 是我們之前解出來的萬能鑰匙
+        result[i] = string.char(bit32.bxor(string.byte(input, i), 231))
+    end
+    return table.concat(result)
+end
+
+-- 建立常量池映射
+local Decrypted_Constants = RealTime_Decrypt(Encrypted_Raw_Data)
+
+-- 將解密後的數據注入到我們還原的功能中
+getgenv().Internal_Data = Decrypted_Constants
+
+
 -- [[ 原始源碼還原：第三部分 - 視覺功能 (ESP) ]]
 
 local function CreateESP(Player)
