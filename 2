@@ -1,0 +1,322 @@
+-- [[ 第一段：基礎環境與位元運算還原 ]]
+
+local l1p = tonumber
+local l785 = math.floor
+local l27w = string.char
+local Kq = string.sub
+local l63k = string.byte
+local l75 = table.concat
+local jO1 = select
+local KH = math.min
+
+-- 虛擬機核心：Bit 運算庫還原 (處理 XOR, Band, Lshift 等)
+local xyi = (function()
+    local function band(a, b)
+        local res, m = 0, 1
+        while a > 0 and b > 0 do
+            if a % 2 == 1 and b % 2 == 1 then res = res + m end
+            a, b, m = l785(a / 2), l785(b / 2), m * 2
+        end
+        return res
+    end
+
+    local function bxor(a, b)
+        local res, m = 0, 1
+        while a > 0 or b > 0 do
+            if a % 2 ~= b % 2 then res = res + m end
+            a, b, m = l785(a / 2), l785(b / 2), m * 2
+        end
+        return res
+    end
+
+    return {
+        band = band,
+        bxor = bxor,
+        bor = function(a, b) return a + b - band(a, b) end,
+        bnot = function(n) return 4294967295 - n end,
+        lshift = function(a, b) return (a * (2 ^ b)) % 4294967296 end,
+        rshift = function(a, b) return l785(a / (2 ^ b)) end
+    }
+end)()
+
+-- 核心解密函數 (用於還原被加密的字串)
+-- 邏輯：(Byte XOR 231) -> 轉為字元
+local function decrypt_string(encrypted_str)
+    local kII = {}
+    for i = 1, #encrypted_str do
+        -- 0xE7 = 231，這是混淆器使用的 Key
+        kII[i] = l27w(xyi.bxor(l63k(encrypted_str, i), 0xE7))
+    end
+    return l75(kII)
+end
+
+-- 亂數種子與環境初始化
+local OZ = (231 + (#"123")) -- 這裡會根據文件長度動態計算
+local function get_random_fn(seed)
+    local Ib = seed % 2147483647
+    return function()
+        Ib = (15645 * Ib) % 2147483647
+        return Ib
+    end
+end
+
+-- [[ 第一段：基礎環境與位元運算還原 ]]
+
+local l1p = tonumber
+local l785 = math.floor
+local l27w = string.char
+local Kq = string.sub
+local l63k = string.byte
+local l75 = table.concat
+local jO1 = select
+local KH = math.min
+
+-- 虛擬機核心：Bit 運算庫還原 (處理 XOR, Band, Lshift 等)
+local xyi = (function()
+    local function band(a, b)
+        local res, m = 0, 1
+        while a > 0 and b > 0 do
+            if a % 2 == 1 and b % 2 == 1 then res = res + m end
+            a, b, m = l785(a / 2), l785(b / 2), m * 2
+        end
+        return res
+    end
+
+    local function bxor(a, b)
+        local res, m = 0, 1
+        while a > 0 or b > 0 do
+            if a % 2 ~= b % 2 then res = res + m end
+            a, b, m = l785(a / 2), l785(b / 2), m * 2
+        end
+        return res
+    end
+
+    return {
+        band = band,
+        bxor = bxor,
+        bor = function(a, b) return a + b - band(a, b) end,
+        bnot = function(n) return 4294967295 - n end,
+        lshift = function(a, b) return (a * (2 ^ b)) % 4294967296 end,
+        rshift = function(a, b) return l785(a / (2 ^ b)) end
+    }
+end)()
+
+-- 核心解密函數 (用於還原被加密的字串)
+-- 邏輯：(Byte XOR 231) -> 轉為字元
+local function decrypt_string(encrypted_str)
+    local kII = {}
+    for i = 1, #encrypted_str do
+        -- 0xE7 = 231，這是混淆器使用的 Key
+        kII[i] = l27w(xyi.bxor(l63k(encrypted_str, i), 0xE7))
+    end
+    return l75(kII)
+end
+
+-- 亂數種子與環境初始化
+local OZ = (231 + (#"123")) -- 這裡會根據文件長度動態計算
+local function get_random_fn(seed)
+    local Ib = seed % 2147483647
+    return function()
+        Ib = (15645 * Ib) % 2147483647
+        return Ib
+    end
+end
+
+-- [[ 第三段：虛擬機核心指令集 (Opcode 8 - 25) ]]
+
+-- [指令 8]：從 Table 中獲取數據 (GETTABLE)
+-- 例如：l150[reg] = workspace.Part
+j0I[8] = function(inst)
+    local reg = inst[2]
+    local table_obj = l150[inst[3]]
+    local key = inst[4]
+    l150[reg] = table_obj[key]
+end
+
+-- [指令 9]：跳轉指令 (JMP)
+-- 控制代碼的執行順序，用於實現 if-else 和迴圈
+j0I[9] = function(inst)
+    l42u = l42u + inst[3]
+end
+
+-- [指令 12]：取模運算 (MOD)
+-- 邏輯：a % b
+j0I[12] = function(inst)
+    local target = inst[2]
+    local a = l150[inst[3]]
+    local b = inst[4]
+    l150[target] = a % b
+end
+
+-- [指令 14]：設置 Table 屬性 (SETTABLE)
+-- 例如：workspace.Part.Transparency = 0.5
+j0I[14] = function(inst)
+    local table_obj = l150[inst[2]]
+    local key = l150[inst[3]]
+    local value = l150[inst[4]]
+    table_obj[key] = value
+end
+
+-- [指令 15]：字串拼接 (CONCAT)
+-- 將多個字串結合成一個（常用於拼接 Webhook 訊息）
+j0I[15] = function(inst)
+    local target = inst[2]
+    local start_reg = inst[3]
+    local end_reg = inst[4]
+    local tmp = {}
+    for i = start_reg, end_reg do
+        tmp[#tmp + 1] = tostring(l150[i] or "")
+    end
+    l150[target] = table.concat(tmp, "")
+end
+
+-- [指令 16]：設置 Upvalue (SETUPVAL)
+-- 用於修改閉包（Closure）外部的變數
+j0I[16] = function(inst)
+    local up_idx = inst[3]
+    env_upvalues[up_idx] = l150[inst[2]]
+end
+
+-- [指令 20]：加載 Table 數據 (GETUPVAL 變體)
+j0I[20] = function(inst)
+    local reg = inst[2]
+    local key = inst[3]
+    l150[reg] = l89v[key] -- l89v 是混淆器定義的環境表
+end
+
+-- [指令 23]：邏輯檢測 (TEST)
+-- 如果條件不符，跳過下一條指令
+j0I[23] = function(inst)
+    local val = l150[inst[3]]
+    if not val then
+        l42u = l42u + 1
+    else
+        l150[inst[2]] = val
+    end
+end
+
+-- [[ 第四段：算術運算與 Table 初始化 ]]
+
+-- [指令 24]：乘法運算 (MUL)
+j0I[24] = function(inst)
+    local val = inst[4] * l150[inst[3]]
+    l150[inst[2]] = val
+end
+
+-- [指令 25]：泛型迴圈處理 (FORLOOP 準備)
+-- 用於遍歷遊戲中的所有對象（如遍歷所有玩家）
+j0I[25] = function(inst)
+    local reg = inst[2]
+    local a = l150[reg]
+    local b = l150[inst[4]]
+    if a ~= b then
+        l42u = inst[3] -- 跳轉到迴圈起始位置
+    else
+        l42u = l42u + 1
+    end
+end
+
+-- [指令 26]：高級字元編碼還原 (Luraph 特有邏輯)
+-- 處理更複雜的字串偏移校驗
+j0I[26] = function(inst)
+    local reg = inst[2]
+    local raw_val = inst[3]
+    l150[reg] = decrypt_string(raw_val) -- 使用剛才第一段的解密函數
+end
+
+-- [[ 第五段：高級函數、閉包與可變參數處理 ]]
+
+-- [指令 27]：加載 Table 索引 (GETTABLE 變體)
+j0I[27] = function(inst)
+    local table_obj = l150[inst[3]]
+    local key = inst[4]
+    local val = table_obj[key]
+    l150[inst[2]] = val
+end
+
+-- [指令 28]：處理可變參數 (VARARG)
+-- 這是掛載功能（如自定義回傳值）時最常用的指令
+j0I[28] = function(inst)
+    local reg = inst[2]
+    local count = inst[3]
+    local varargs = { ... } -- 獲取外部傳入的所有參數
+    for i = 1, count do
+        l150[reg + i - 1] = varargs[i]
+    end
+    l430 = reg + count - 1
+end
+
+-- [指令 29]：邏輯相等跳轉 (EQ)
+-- 用於判斷，例如：if 玩家名稱 == "作者" then ...
+j0I[29] = function(inst)
+    local a = l150[inst[2]]
+    local b = inst[4]
+    local is_equal = (a == b)
+    if is_equal ~= (inst[3] ~= 0) then
+        l42u = l42u + 1
+    end
+end
+
+-- [指令 30]：設置函數閉包 (CLOSURE)
+-- 這是 VM 最核心的行為：在 VM 裡面再跑一個新的 Function
+j0I[30] = function(inst)
+    local reg = inst[2]
+    local prototype_idx = inst[3]
+    -- 這裡會從原型表中複製出一個新的函數並賦值給寄存器
+    l150[reg] = create_closure(prototypes[prototype_idx], env)
+end
+
+-- [指令 31]：執行回傳 (RETURN)
+-- 結束當前函數並返回數據
+j0I[31] = function(inst)
+    local start_reg = inst[2]
+    local count = inst[3]
+    return unpack(l150, start_reg, start_reg + count - 2)
+end
+
+-- [指令 32]：執行長跳轉與循環迭代 (TFORLOOP)
+j0I[32] = function(inst)
+    local reg = inst[2]
+    local func = l150[reg]
+    local state = l150[reg + 1]
+    local var = l150[reg + 2]
+    
+    local results = { func(state, var) }
+    for i = 1, #results do
+        l150[reg + 2 + i] = results[i]
+    end
+    if l150[reg + 3] ~= nil then
+        l150[reg + 2] = l150[reg + 3]
+    else
+        l42u = l42u + 1
+    end
+end
+
+-- [指令 38]：尾調用優化 (TAILCALL)
+-- 用於優化遞歸函數，節省記憶體
+j0I[38] = function(inst)
+    local reg = inst[2]
+    local args = inst[3]
+    return l150[reg](unpack(l150, reg + 1, reg + args - 1))
+end
+
+
+-- [[ 最終執行入口：VM 主循環 ]]
+
+local function start_execution()
+    while true do
+        local inst = instructions[l42u] -- 獲取當前指令
+        local opcode = inst[1]
+        
+        -- 核心引擎執行
+        local action = j0I[opcode]
+        if action then
+            action(inst)
+        else
+            error("Unknown Opcode: " .. tostring(opcode))
+        end
+        
+        l42u = l42u + 1 -- 指令指針前移
+        if l42u > #instructions then break end
+    end
+end
