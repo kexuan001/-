@@ -1,0 +1,123 @@
+-- [[ Xeno 純淨還原版 - Part 1: 環境與攔截 ]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- 全域功能開關
+getgenv().Config = {
+    WalkSpeed = 16,
+    JumpPower = 50,
+    NoClip = false,
+    ESP = false,
+    InfJump = false
+}
+
+-- 1. 元表劫持 (Metatable Hook): 讓伺服器讀取不到你的真實速度
+local mt = getrawmetatable(game)
+local old_index = mt.__index
+setreadonly(mt, false)
+
+mt.__index = newcclosure(function(t, k)
+    if not checkcaller() and t:IsA("Humanoid") then
+        if k == "WalkSpeed" then return 16 end
+        if k == "JumpPower" then return 50 end
+    end
+    return old_index(t, k)
+end)
+setreadonly(mt, true)
+
+-- 2. 防封號攔截 (Namecall Hook): 阻斷檢測包發送
+local old_nc
+old_nc = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
+        if tostring(self):find("Check") or tostring(self):find("Detection") then
+            return nil
+        end
+    end
+    return old_nc(self, ...)
+end)
+
+-- [[ Xeno 純淨還原版 - Part 2: 功能循環 ]]
+
+-- 3. 穿牆邏輯 (NoClip)
+RunService.Stepped:Connect(function()
+    if getgenv().Config.NoClip and LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- 4. 實時屬性維持 (速度/跳躍)
+RunService.RenderStepped:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = getgenv().Config.WalkSpeed
+        LocalPlayer.Character.Humanoid.JumpPower = getgenv().Config.JumpPower
+    end
+end)
+
+-- 5. 無限跳躍 (Inf Jump)
+game:GetService("UserInputService").JumpRequest:Connect(function()
+    if getgenv().Config.InfJump and LocalPlayer.Character then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
+
+
+-- [[ Xeno 純淨還原版 - Part 3: 視覺與介面 ]]
+
+-- 6. ESP 繪製引擎
+local function ApplyESP(plr)
+    local Box = Drawing.new("Square")
+    Box.Visible = false
+    Box.Color = Color3.fromRGB(255, 0, 0)
+    Box.Thickness = 1
+    Box.Transparency = 1
+    Box.Filled = false
+
+    RunService.RenderStepped:Connect(function()
+        if getgenv().Config.ESP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local root = plr.Character.HumanoidRootPart
+            local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(root.Position)
+            if onScreen then
+                local dist = (workspace.CurrentCamera.CFrame.Position - root.Position).Magnitude
+                local size = (1000 / dist) * 2
+                Box.Size = Vector2.new(size, size * 1.5)
+                Box.Position = Vector2.new(pos.X - Box.Size.X/2, pos.Y - Box.Size.Y/2)
+                Box.Visible = true
+            else Box.Visible = false end
+        else Box.Visible = false end
+    end)
+end
+
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then ApplyESP(p) end end
+Players.PlayerAdded:Connect(ApplyESP)
+
+-- 7. 極簡 UI 控制開關 (點擊即可切換功能)
+local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+local Frame = Instance.new("ScrollingFrame", ScreenGui)
+Frame.Size = UDim2.new(0, 200, 0, 250)
+Frame.Position = UDim2.new(0, 10, 0.5, -125)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+
+local function CreateBtn(text, y, callback)
+    local b = Instance.new("TextButton", Frame)
+    b.Size = UDim2.new(1, -10, 0, 40)
+    b.Position = UDim2.new(0, 5, 0, y)
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.MouseButton1Click:Connect(callback)
+end
+
+CreateBtn("加速開/關 (100)", 0, function() getgenv().Config.WalkSpeed = (getgenv().Config.WalkSpeed == 16 and 100 or 16) end)
+CreateBtn("穿牆開/關", 50, function() getgenv().Config.NoClip = not getgenv().Config.NoClip end)
+CreateBtn("透視開/關", 100, function() getgenv().Config.ESP = not getgenv().Config.ESP end)
+CreateBtn("無限跳開/關", 150, function() getgenv().Config.InfJump = not getgenv().Config.InfJump end)
+
+print("--- 所有原始碼功能已還原並啟動 ---")
